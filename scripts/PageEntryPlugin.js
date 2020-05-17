@@ -13,6 +13,8 @@ class PageEntryPlugin {
     const options = compiler && compiler.options;
     const entry = options && options.entry;
     this.context = options && options.context;
+    this.addEntry(this.entries, this.formatEntry(entry))
+
     let dirname = path.dirname(path.resolve(__dirname, this.context, entry))
     dirname = dirname.replace(new RegExp(`\\${path.sep}`, 'g'), path.posix.sep)
     const pageDirname = path.posix.join(dirname, this.pageDir)
@@ -22,22 +24,39 @@ class PageEntryPlugin {
       this.entries.forEach(item => {
         toEntryPlugin(this.context, item.path, item.name).apply(compiler)
       })
+      return true; // 阻止后面继续处理entry生成main.js
     })
   }
 
   /**
-   * 从当前页面文件路径中提取到相对于 `context`的路径，得到entry的name、path
-   * @param {String} pageDirname  页面目录所在的路径
-   * @param {Array} target 存放entry的数组
+   * 添加entry 到 entries
+   * @param {Array} entries 用于汇总所有entries的数组
+   * @param {String} entry 单个entry
    */
-  getPageEntry(pageDirname, target = []) {
-    const relativePath = path.relative(this.context, pageDirname)
-    const dirname = path.dirname(relativePath)
-    target.push({
-      path: `./${relativePath}`,
-      name: `${dirname}/index`
-    })
+  addEntry(entries = [], entry) {
+    if (entry && !entries.includes(entry)) {
+      entries.push(entry);
+    }
   }
+
+  formatEntry(entryPath, entryName) {
+    entryPath = String(entryPath)
+    if (entryName) {
+      return {
+        name: entryName,
+        path: entryPath
+      }
+    } else {
+      const sep = entryPath.indexOf('/') > -1 ? '/' : '\\';
+      const name = entryPath.split(sep).pop().split('.')[0]
+      return {
+        name,
+        path: entryPath
+      }
+    }
+
+  }
+
 
   /**
    * 遍历pageDir页面得到所有页面入口entry
@@ -51,6 +70,18 @@ class PageEntryPlugin {
     pageList.forEach(item => {
       this.getPageEntry(item, target)
     })
+  }
+
+  /**
+   * 从当前页面文件路径中提取到相对于 `context`的路径，得到entry的name、path
+   * @param {String} pageDirname  页面目录所在的路径
+   * @param {Array} target 存放entry的数组
+   */
+  getPageEntry(pageDirname, target = []) {
+    const relativePath = path.relative(this.context, pageDirname)
+    const dirname = path.dirname(relativePath)
+    const pageName = dirname.split(path.sep).pop(); // 生成与目录名相同的 js 文件
+    this.addEntry(target, this.formatEntry(`./${relativePath}`, `${dirname}/${pageName}`))
   }
 }
 

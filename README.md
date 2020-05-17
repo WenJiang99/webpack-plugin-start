@@ -190,6 +190,8 @@ module.exports = PageEntryPlugin;
 
 这里文件遍历我们采用的是[globby](https://www.npmjs.com/package/globby)函数库，当然你也可以用其他方法
 
+这里我们主要是为了小程序开发编写的插件，小程序目录中页面存放在 `pages`目录下，所以这里我们对页面入口生成的输出文件保留了相应的目录路径
+
 其实现具体如下：
 
 ```js
@@ -243,3 +245,15 @@ module.exports = PageEntryPlugin;
     })
   }
 ```
+
+## 应用插件
+
+插件编写完后，只需要在配置文件中 `plugins`字段添加上对应插件就OK。
+
+然后在 `package.json`中加上一个 `build`脚本
+
+```json
+"build":"webpack --config ./scripts/webpack.config.js"
+```
+
+执行 `npm run build` 构建一下就OK
