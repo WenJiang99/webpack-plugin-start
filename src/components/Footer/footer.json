@@ -1,0 +1,5 @@
+{
+    "usingComponents": {
+        "page-title": "/components/Title/title"
+    }
+}
