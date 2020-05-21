@@ -1,5 +1,5 @@
 {
     "usingComponents": {
-        "page-title": "/components/Title/title"
+        "page-title": "components/Title/title"
     }
 }

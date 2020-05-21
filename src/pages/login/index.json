@@ -1,5 +1,5 @@
 {
   "usingComponents": {
-    "page-header": "/components/Header/header"
+    "page-header": "components/Header/header"
   }
 }
