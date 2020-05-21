@@ -5,7 +5,7 @@ const PageEntryPlugin = require('./PageEntryPlugin')
 const src = path.resolve(__dirname, '../src')
 module.exports = {
   context: src,
-  entry: './app.js',
+  entry: './app.ts',
   output: {
     filename: "[name].js",
     path: path.resolve('dist')

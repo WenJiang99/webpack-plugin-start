@@ -9,6 +9,8 @@ const MultiEntriesPlugin = require('webpack/lib/MultiEntryPlugin');
 class PageEntryPlugin {
   constructor(options) {
     this.pageDir = (options && options.pageDir) || 'pages';
+    this.appRoot = '';
+    this.ext = '';
     this.entries = [];
     this.context = null;
   }
@@ -16,8 +18,6 @@ class PageEntryPlugin {
     const options = compiler && compiler.options;
     const entry = options && options.entry;
     this.context = options && options.context;
-    this.addEntry(this.entries, entry)
-
     this.resolveEntries(this.context, entry, this.entries)
 
     compiler.hooks.entryOption.tap('PageEntryPlugin', (compilation) => {
@@ -30,21 +30,49 @@ class PageEntryPlugin {
 
 
   resolveEntries(context, entry, target = []) {
-    let dirname = path.dirname(path.resolve(__dirname, context, entry))
-    dirname = dirname.replace(new RegExp(`\\${path.sep}`, 'g'), path.posix.sep)
-    const pageDirname = path.posix.join(dirname, this.pageDir)
-    this.getPageEntryList(pageDirname, target, path.extname(entry))
+    this.addEntry(this.entries, entry)
+    this.ext = path.extname(entry)
+    this.appRoot = path.dirname(path.resolve(__dirname, context, entry))
+    const posixAppRoot = this.appRoot.replace(new RegExp(`\\${path.sep}`, 'g'), path.posix.sep) // globby 只能查找正向斜杠 / 
+    const pagesRootName = path.posix.join(posixAppRoot, this.pageDir)
+    this.getPageEntryList(pagesRootName, target, path.extname(entry), this.ext)
+  }
+
+  /**
+   * 遍历pageDir页面得到所有页面入口entry
+   * @param {String} pagesRootName 页面所在的目录路径
+   * @param {*} target 存放entryList的数组
+   * @param {*} ext 入口文件扩展名
+   */
+  getPageEntryList(pagesRootName, target = [], ext = '.js') {
+    const pattern = `${pagesRootName}/**/*${ext}`;
+    const pageList = globby.sync([pattern]);
+    pageList.forEach(item => {
+      this.getPageEntry(item, target)
+    })
+  }
+
+  /**
+   * 从当前页面文件pages/xxx/xxx.js路径中提取到相对于app.js入口所在目录的路径，得到entry的name、path
+   * @param {String} pageEntryFile  页面目录所在的路径
+   * @param {Array} target 存放entry的数组
+   */
+  getPageEntry(pageEntryFile, target = []) {
+    const relativeToContextPath = path.relative(this.context, pageEntryFile)
+    const dirname = path.dirname(relativeToContextPath)
+    const pageName = dirname.split(path.sep).pop(); // 生成与目录名相同的 js 文件
+    this.addEntry(target, `./${relativeToContextPath}`, `${dirname}/${pageName}`)
   }
 
   /**
    * 添加entry 到 entries
    * @param {Array} entries 用于汇总所有entries的数组
-   * @param {String} entryPath 单个entry
+   * @param {String} entryPath 单个entry,相对于 `context`的相对路径
    */
   addEntry(entries = [], entryPath, entryName) {
     const entry = this.formatEntry(entryPath, entryName)
-    if (path.extname(entryPath) === '.js') {
-      this.getComponentsEntries(entries, entryPath)
+    if (path.extname(entryPath) === this.ext) {
+      this.getComponentsEntries(entries, entryPath, this.ext)
     }
     if (entryPath && !entries.includes(entry)) {
       entries.push(entry);
@@ -68,7 +96,7 @@ class PageEntryPlugin {
     }
   }
 
-  getComponentsEntries(target, file) {
+  getComponentsEntries(target, file, ext = '.js') {
     const resolvedFile = path.resolve(this.context, file)
     const configFile = replaceExt(resolvedFile, '.json');
     let config;
@@ -76,7 +104,7 @@ class PageEntryPlugin {
       // json文件可能不存在
       config = JSON.parse(fs.readFileSync(configFile, { encoding: 'utf-8' }));
     } catch (error) {
-      console.error(`parse config file error ==> `, error)
+      // console.error(`parse config file error ==> `, error)
       config = '';
     }
     if (!config || !config.usingComponents) return;
@@ -84,39 +112,16 @@ class PageEntryPlugin {
     for (let k in components) {
       let filePath = components[k];
       // 引用组件路径时候都是不带扩展名，需要加上 js 后缀来指定入口文件后缀
-      filePath = replaceExt(filePath, '.js')
+      filePath = replaceExt(filePath, ext)
+      // 以 / 开头的目录是相对于 app.js 所在目录的路径
       if (filePath[0] !== '.') {
-        this.addEntry(target, '.' + filePath, replaceExt(filePath, ''))
+        filePath = path.join(this.appRoot, filePath)
+        filePath = path.relative(this.context, filePath)
+        this.addEntry(target, `./${filePath}`, replaceExt(filePath, ''))
       } else {
         this.addEntry(target, filePath, replaceExt(filePath, ''))
       }
     }
-  }
-
-  /**
-   * 遍历pageDir页面得到所有页面入口entry
-   * @param {String} dirname 页面所在的目录路径
-   * @param {*} target 存放entryList的数组
-   * @param {*} ext 入口文件扩展名，暂时先不做扩展，固定成 `.js`
-   */
-  getPageEntryList(dirname, target = [], ext = '.js') {
-    const pattern = `${dirname}/**/*${ext}`;
-    const pageList = globby.sync([pattern]);
-    pageList.forEach(item => {
-      this.getPageEntry(item, target)
-    })
-  }
-
-  /**
-   * 从当前页面文件路径中提取到相对于 `context`的路径，得到entry的name、path
-   * @param {String} pageDirname  页面目录所在的路径
-   * @param {Array} target 存放entry的数组
-   */
-  getPageEntry(pageDirname, target = []) {
-    const relativePath = path.relative(this.context, pageDirname)
-    const dirname = path.dirname(relativePath)
-    const pageName = dirname.split(path.sep).pop(); // 生成与目录名相同的 js 文件
-    this.addEntry(target, `./${relativePath}`, `${dirname}/${pageName}`)
   }
 }
 
